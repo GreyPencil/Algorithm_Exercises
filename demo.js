@@ -13,17 +13,26 @@ function equar(a, b) {
     }
 }
 
-let array = [1,2,4,3,3,5,7,5,7];
-let array1 = [];
-let array2 = [];
-for (let i = 0; i < array.length; i++){
-    array1.push(array[i]);
-    array2.push(array[i]);
-}
-console.log("array1:", array1);
-console.log("array2:", array2);
+// let array = [1,2,4,3,3,5,7,5,7];
+// let array1 = [];
+// let array2 = [];
+// for (let i = 0; i < array.length; i++){
+//     array1.push(array[i]);
+//     array2.push(array[i]);
+// }
+// console.log("array1:", array1);
+// console.log("array2:", array2);
 
-array1.sort((a,b)=>a-b);
-array2.sort((a,b)=>b-a);
-console.log("array1:", array1);
-console.log("array2:", array2);
+// array1.sort((a,b)=>a-b);
+// array2.sort((a,b)=>b-a);
+// console.log("array1:", array1);
+// console.log("array2:", array2);
+
+const score = {current: 0, previous: 1};
+const score1 = {[current]: 0};
+
+console.log(score);
+console.log(score.current);
+console.log(score.previous);
+console.log(score1[current]);
+
