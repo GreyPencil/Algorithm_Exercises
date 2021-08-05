@@ -20,8 +20,33 @@ also guarantedd that the tournament will always have at least two teams.
 // O(n) time | O(k) space where n is the number of competitons and k is the number of teams
 function tournamentWinner(competitions, results) {
     // Write your code here.
-    return '';
+    const HOME_TEAM_WON = 1;
+    let currentBestTeam = '';
+    const scores = {[currentBestTeam]: 0};
+    for (let i=0; i< competitions.length; i++){
+      const result = results[i];
+      console.log('result:' ,result);
+      const [homeTeam, awayTeam] = competitions[i];
+      const winTeam = result === HOME_TEAM_WON?homeTeam: awayTeam;
+      updateScores(winTeam, scores, 3);
+      if (scores[winTeam] > scores[currentBestTeam]){
+        currentBestTeam = winTeam;
+      }
+    }
+    function updateScores(team, scores, points){
+      if(!(team in scores)){
+        scores[team]=0;
+        console.log("scores", scores);
+      }
+      scores[team] += points;
+    }
+    return currentBestTeam;
   }
   
+tournamentWinner([
+  ["HTML", "C#"],
+  ["C#", "Python"],
+  ["Python", "HTML"]
+], [0, 0, 1]);
   // Do not edit the line below.
-  exports.tournamentWinner = tournamentWinner;
+  // exports.tournamentWinner = tournamentWinner;
