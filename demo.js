@@ -28,11 +28,50 @@ function equar(a, b) {
 // console.log("array1:", array1);
 // console.log("array2:", array2);
 
-const score = {current: 0, previous: 1};
-const score1 = {[current]: 0};
+// const score = {current: 0, previous: 1};
+// const score1 = {[current]: 0};
 
-console.log(score);
-console.log(score.current);
-console.log(score.previous);
-console.log(score1[current]);
+// console.log(score);
+// console.log(score.current);
+// console.log(score.previous);
+// console.log(score1[current]);
 
+// var a = [1,2]
+// a[5] = 3;
+// console.log(a.length)
+
+// const foo = {
+//     bar(){
+//         console.log(1)
+//     },
+//     name: "alber",
+//     age: 26,
+// }
+
+// console.log("foo")
+// setTimeout(()=>{
+//     console.log("love")
+// },0);
+// console.log("3")
+
+// var v =1;
+// var f1 = function(){
+//     console.log(v)
+// }
+// var f2 = function(){
+//     var v = 2;
+//     f1();
+// }
+// f2();
+
+// class X {
+//     get Y() { return 42;}
+// }
+// var x = new X();
+
+// x.Y
+
+const foo = [1,2,3]
+const [n] = foo;
+// var b = (a = 3 ) ? true: false;
+console.log(n)
