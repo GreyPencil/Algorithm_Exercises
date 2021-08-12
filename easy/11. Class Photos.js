@@ -19,10 +19,41 @@ O(nlogn) time O(1) space
 function classPhotos(redShirtHeights, blueShirtHeights) {
     // Write your code here.
     redShirtHeights.sort((a,b)=> a -b);
-    redShirtHeights.sort((a,b)=> a -b);
-    return false;
+    blueShirtHeights.sort((a,b)=> a -b);
+    let l = redShirtHeights.length;
+    console.log(l);
+    for(let i = 0; i< l; i++){
+        console.log("blue:", blueShirtHeights[l-1]);
+        console.log("red:", redShirtHeights[l-1]);
+        const redHeight = redShirtHeights[i];
+        const blueHeight = blueShirtHeights[i];
+        if(redShirtHeights[l-1]>blueShirtHeights[l-1]){
+            console.log(111);
+           if (blueHeight>=redHeight){
+            console.log("red:", redShirtHeights[l-1]);
+               return false;
+               
+           }
+        }else if (redShirtHeights[l-1]<blueShirtHeights[l-1]){
+            console.log(222);
+            console.log("blue", blueShirtHeights);
+            console.log("red", redShirtHeights);
+            if (redHeight>=blueHeight){
+                console.log("blue:", blueShirtHeights[l-1]);
+                return false;
+                
+            }
+        } else {
+            return false;
+        }
+        console.log(3)
+        
+    }
+    return true;
+    
   }
   
   // Do not edit the line below.
-  exports.classPhotos = classPhotos;
+//   exports.classPhotos = classPhotos;
   
+classPhotos([19,2,3,6,4,2,3,1,1,4], [21,5,4,4,4,4,4,4,4,4]);
