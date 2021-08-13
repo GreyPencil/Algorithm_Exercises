@@ -5,6 +5,8 @@ Non-empty array contains either integers or other "special" arrays. The product 
  arrays inside it are summed themselves and then multiplied by their level of depth.
  depth: [] 1; [[]] 2; [[[]]] 3
  sample: [x,y]   x+y; [x,[y,z]]   x + 2*(y+z)
+
+ O(n) time   O(d) space
 */
 
 function productSum(array, multiplier = 1) {
