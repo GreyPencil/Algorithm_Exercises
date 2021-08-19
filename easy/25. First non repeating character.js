@@ -1,7 +1,7 @@
 /* the first non-reapeating character is the first character in a string that occurs only once, return the index of character
 if the input string doesn't have any, return -1 */
 
-// O(n^2)   O(1)
+// O(n^2) time  O(1) space
 function firstNonRepeatingCharacter(string) {
     // Write your code here.
     
@@ -18,7 +18,7 @@ function firstNonRepeatingCharacter(string) {
     return -1;
   }
 
-// O(n)   O(1) space
+// O(n) time  O(1) space
   function firstNonRepeatingCharacter2(string) {
       const characterFrequency = {};
       for (const char of string){
