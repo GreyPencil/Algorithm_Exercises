@@ -18,7 +18,7 @@ function firstNonRepeatingCharacter(string) {
     return -1;
   }
 
-// O(n)   O(1)
+// O(n)   O(1) space
   function firstNonRepeatingCharacter2(string) {
       const characterFrequency = {};
       for (const char of string){
