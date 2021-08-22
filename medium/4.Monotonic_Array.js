@@ -59,14 +59,14 @@ function isMonotonic2(array) {
     }
     return true;
   }
-  fuction breaksDirection(direction, previousInt, currentInt) {
+  function breaksDirection(direction, previousInt, currentInt) {
       const difference  = currentInt - previousInt;
       if(direction>0) return difference <0;
       return difference >0;
   }
   
   // Do not edit the line below.
-  exports.isMonotonic2 = isMonotonic2;
+//   exports.isMonotonic2 = isMonotonic2;
 
 
 //   solution 3   O(n) time    O(1) space
