@@ -8,7 +8,7 @@ output: [8, 40, 10, 20]
 40=5*4*2
 10=5*1*2
 */
-// O(n) time O(n) space
+// O(n) time O(2n)/O(n) space
 function arrayOfProducts(array) {
     // Write your code here.
     let production = 1;
@@ -30,6 +30,7 @@ function arrayOfProducts(array) {
 
   }
 
+//   O(n^2) time O(n) space
   function arrayOfP(array){
       const products = [];
 
