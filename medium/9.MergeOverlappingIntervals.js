@@ -17,11 +17,36 @@ sample input: "intervals": [
     [3, 8],
     [9, 10]
   ]
+
+  O(nlogn) time  O(n)space
 */
-function mergeOverlappingIntervals(array) {
+function mergeOverlappingIntervals(intervals) {
     // Write your code here.
-    return [[]];
+    const sortedIntervals = intervals.sort((a,b) => a[0] -b[0]);
+
+    const mergedIntervals = [];
+    let currentInterval = sortedIntervals[0];
+    mergedIntervals.push(currentInterval);
+
+    for(const nextInterval of sortedIntervals) {
+      const [_, currentIntervalEnd] = currentInterval;
+      console.log(currentInterval);
+      const[nextIntervalStart, nextIntervalEnd] = nextInterval;
+      if(currentIntervalEnd >= nextIntervalStart) currentInterval[1] = Math.max(currentIntervalEnd, nextIntervalEnd);
+      else {
+        currentInterval = nextInterval;
+        mergedIntervals.push(currentInterval);
+      }
+    }
+    console.log(mergedIntervals);
+    return mergedIntervals;
+    
   }
-  
-  // Do not edit the line below.
-  exports.mergeOverlappingIntervals = mergeOverlappingIntervals;
+
+  mergeOverlappingIntervals([
+    [1, 2],
+    [3, 5],
+    [4, 7],
+    [6, 8],
+    [9, 10]
+  ]);
