@@ -49,5 +49,6 @@ function mergeOverlappingIntervals(intervals) {
     [3, 5],
     [4, 7],
     [6, 8],
-    [9, 10]
+    [9, 10],
+    [11,12]
   ]);
