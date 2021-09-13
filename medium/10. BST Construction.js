@@ -24,23 +24,23 @@ class BST {
     // Write your code here.
     // Do not edit the return statement of this method.
     let currentNode = this;
-    while(true){
-      if (value < currentNode.value){
-        if(currentNode.left === null){
+    while (true) {
+      if (value < currentNode.value) {
+        if (currentNode.left === null) {
           currentNode.left = new BST(value);
           break;
         } else {
           currentNode = currentNode.left;
         }
-    }else {
-      if (currentNode.right === null){
-        currentNode.right = new BST(value);
-        break;
-      }else{
-        currentNode = currentNode.right;
+      } else {
+        if (currentNode.right === null) {
+          currentNode.right = new BST(value);
+          break;
+        } else {
+          currentNode = currentNode.right;
+        }
       }
     }
-  }
 
     return this;
   }
@@ -48,12 +48,12 @@ class BST {
   contains(value) {
     // Write your code here.
     let currentNode = this;
-    while (currentNode !== null){
-      if(value < currentNode.value){
+    while (currentNode !== null) {
+      if (value < currentNode.value) {
         currentNode = currentNode.left;
-      } else if (value > currentNode.value){
+      } else if (value > currentNode.value) {
         currentNode = currentNode.right;
-      }else {
+      } else {
         return true;
       }
     }
@@ -64,46 +64,46 @@ class BST {
     // Write your code here.
     // Do not edit the return statement of this method.
     let currentNode = this;
-    while (currentNode !== null){
-      if (value < currentNode.value){
+    while (currentNode !== null) {
+      if (value < currentNode.value) {
         parentNode = currentNode;
         currentNode = currentNode.left;
-      } else if (value > currentNode.value){
+      } else if (value > currentNode.value) {
         parentNode = currentNode;
         currentNode = currentNode.right;
-      }else {
-        if (currentNode.left !==null && currentNode.right !== null){
+      } else {
+        if (currentNode.left !== null && currentNode.right !== null) {
           currentNode.value = currentNode.right.getMinValue();
           currentNode.right.remove(currentNode.value, currentNode);
-        }else if(parentNode === null){
-          if (currentNode.left !== null){
+        } else if (parentNode === null) {
+          if (currentNode.left !== null) {
             currentNode.value = currentNode.left.value;
             currentNode.right = currentNode.left.right;
             currentNode.left = currentNode.left.left;
-          }else if (currentNode.right != null) {
-          currentNode.value = currentNode.right.value;
+          } else if (currentNode.right != null) {
+            currentNode.value = currentNode.right.value;
             currentNode.right = currentNode.right.right;
-            currentNode.left = currentNode.right.left; 
-        } else {
+            currentNode.left = currentNode.right.left;
+          } else {
 
+          }
+        } else if (parentNode.left === currentNode) {
+          parentNode.left = currentNode.left !== null ? currentNode.left : currentNode.right;
+        } else if (parentNode.right === currentNode) {
+          parentNode.right = currentNode.left !== null ? currentNode.left : currentNode.right;
         }
-      }else if (parentNode.left === currentNode){
-        parentNode.left = currentNode.left !== null ? currentNode.left: currentNode.right;
-      }else if (parentNode.right === currentNode){
-        parentNode.right = currentNode.left !== null ? currentNode.left: currentNode.right;
-    }
-    break;
-  }
-   
-  }
-  return this;
-}
+        break;
+      }
 
-getMinValue(){
-  let currentNode = this;
-  while (currentNode.left !== null){
-    currentNode = currentNode.left;
+    }
+    return this;
   }
-  return currentNode.value;
-}
+
+  getMinValue() {
+    let currentNode = this;
+    while (currentNode.left !== null) {
+      currentNode = currentNode.left;
+    }
+    return currentNode.value;
+  }
 }
