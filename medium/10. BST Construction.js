@@ -107,5 +107,3 @@ class BST {
     return currentNode.value;
   }
 }
-
-// export 
