@@ -75,3 +75,11 @@ const foo = [1,2,3]
 const [n] = foo;
 // var b = (a = 3 ) ? true: false;
 console.log(n)
+
+var text = "hello";
+function change(text){
+    var a = text;
+    var a = "helloworld";
+}
+change(text);
+console.log(text);
