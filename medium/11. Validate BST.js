@@ -9,3 +9,4 @@ are either valid BST nodes themselves or None/null
 
 A BST is valid if and only if all of its nodes are valid BST nodes.
 */
+function
