@@ -9,4 +9,25 @@ are either valid BST nodes themselves or None/null
 
 A BST is valid if and only if all of its nodes are valid BST nodes.
 */
-function
+class BST {
+    constructor(value) {
+      this.value = value;
+      this.left = null;
+      this.right = null;
+    }
+  }
+  
+  function validateBst(tree) {
+      return validateBstHelper(tree, -Infinity, Infinity);
+  }
+
+  function validateBstHelper(tree, minValue, maxValue){
+      if(tree === null) return true;
+      if (tree.value<minValue || tree.value >= maxValue) return false;
+      const leftIsValid = validateBstHelper(tree.left, minValue, tree.value);
+      return leftIsValid && validateBstHelper(tree.right, tree.value, maxValue);
+  }
+  
+  // Do not edit the line below.
+  exports.BST = BST;
+  exports.validateBst = validateBst;
