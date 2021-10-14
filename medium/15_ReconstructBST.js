@@ -25,6 +25,7 @@ class BST {
   
   function reconstructBst(preOrderTraversalValues) {
     // Write your code here.
+    // O(n) time | space
     const treeInfo = new TreeInfo(0);
     return reconstructBstFromRange(-Infinity, Infinity, preOrderTraversalValues, treeInfo);
   }
