@@ -1,0 +1,38 @@
+package com.warehouseandgo.app.v2.service;
+
+import com.warehouseandgo.app.v2.canadapost.shipping.ShipmentInfo;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.Spy;
+import org.mockito.junit.MockitoJUnitRunner;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+
+import static org.junit.jupiter.api.Assertions.*;
+@RunWith(MockitoJUnitRunner.class)
+public class MiddlewareServiceTest {
+    @InjectMocks
+    @Spy
+    private MiddlewareService middlewareService;
+
+    @Mock
+    private MiddlewareApi api;
+
+    private String id = "ID";
+    private String shipmentId = "SHIPMENTID";
+    private String trackingNumber = "TRACKINGNUMBER";
+
+//    @Before
+
+    @Test
+    public void testGetShipmentInfoById() {
+//        middlewareService.getShipmentInfoById("id");
+        ShipmentInfo result = api.getShipmentInfoById("id", "basicAuthToken");
+        System.out.println("result"+result);
+    }
+}
+

@@ -1,0 +1,1392 @@
+package com.warehouseandgo.app.v2.service;
+
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+import com.warehouseandgo.app.v2.annotation.ScopedPermission;
+import com.warehouseandgo.app.v2.dto.LoginDto;
+import com.warehouseandgo.app.v2.dto.RoleDto;
+import com.warehouseandgo.app.v2.exception.WGAuthenticationException;
+import com.warehouseandgo.app.v2.exception.WGDuplicateEntityException;
+import com.warehouseandgo.app.v2.exception.WGInvalidException;
+import com.warehouseandgo.app.v2.exception.WGNotFoundException;
+import com.warehouseandgo.app.v2.model.account.*;
+import com.warehouseandgo.app.v2.model.account.Currency;
+import com.warehouseandgo.app.v2.model.notification.ForgotPasswordEmailTemplate;
+import com.warehouseandgo.app.v2.model.notification.NotificationEmailTemplate;
+import com.warehouseandgo.app.v2.model.notification.NotificationTaskType;
+import com.warehouseandgo.app.v2.model.shared.ModificationOperation;
+import com.warehouseandgo.app.v2.repository.account.LoginPermissionRepository;
+import com.warehouseandgo.app.v2.repository.account.LoginRepository;
+import com.warehouseandgo.app.v2.repository.account.ScopeRepository;
+import com.warehouseandgo.app.v2.repository.notification.ForgotPasswordEmailRepository;
+import com.warehouseandgo.app.v2.repository.notification.NotificationTaskTypeRepository;
+import com.warehouseandgo.app.v2.util.JsonParser;
+import org.json.simple.JSONObject;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.mockito.*;
+import org.mockito.junit.MockitoJUnitRunner;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.crypto.bcrypt.BCrypt;
+
+import javax.persistence.EntityManager;
+import javax.persistence.TypedQuery;
+import java.sql.Timestamp;
+import java.util.*;
+import java.util.stream.Stream;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
+
+@RunWith(MockitoJUnitRunner.class)
+public class LoginServiceTest {
+    @InjectMocks
+    @Spy
+    private LoginService service;
+
+    @Mock private ModificationService modificationService;
+    @Mock private AccountService accountService;
+    @Mock private MailService mailService;
+
+    @Mock private LoginRepository loginRepository;
+    @Mock private LoginPermissionRepository loginPermissionRepository;
+    @Mock private ScopeRepository scopeRepository;
+    @Mock private NotificationTaskTypeRepository notificationTaskTypeRepository;
+    @Mock private ForgotPasswordEmailRepository forgotPasswordEmailRepository;
+    @Mock private EntityManager em;
+    @Mock private TypedQuery typedQuery;
+
+    @Mock private LoginDto loginDto;
+    @Mock private RoleDto roleDto;
+    @Mock private NotificationTaskType taskType;
+    @Mock private NotificationEmailTemplate emailTemplate;
+    @Mock private ForgotPasswordEmailTemplate forgotPasswordEmailTemplate;
+    @Mock private LoginPermission loginPermission;
+    @Mock private Login dbLogin;
+    @Mock private ClientAccount clientAccount;
+    @Mock private ScopedPermission scopedPermission;
+    @Mock private Scope mockScope;
+    @Mock private Map<String, Integer> mockMap;
+    @Mock private Stream<LoginPermission> loginPermissionStream;
+    @Mock private Set<LoginPermission> loginPermissionSet;
+
+    private static final String username = "USERNAME";
+    private static final String password = "P@ssw0rd";
+    private static final String email = "username@testmail.com";
+    private static final Integer id = 1;
+    private static final Integer clientAccountId = 2;
+    private static final String clientAccountName = "TESTACCOUNTNAME";
+    private static final String code = "CODE";
+    private static final String template = "TEMPLATE";
+    private static final Integer minimumInventoryPermissionLevel = 1;
+    private static final String resetLink = "RESETLINK";
+    private static final String role_admin = "ROLE_ADMIN";
+
+    private Login login;
+    private ClientAccount account;
+    private LoginPermission adminLoginPermission;
+    private LoginPermission normalLoginPermission;
+    private LoginPermissionRole loginPermissionRole;
+    private Set<LoginPermission> permissions;
+    private List<ScopePermission> scopePermissionsList;
+    private ScopedPermission initScopedPermission;
+    private Scope scope;
+    private NotificationEmailTemplate notificationEmailTemplate;
+
+    @Before
+    public void init() {
+        MockitoAnnotations.initMocks(this);
+        this.service.begin();
+
+        initScopedPermission = null;
+
+        permissions = Sets.newHashSet();
+        permissions.add(loginPermission);
+
+        ScopePermission.ScopePermissionId scopePermissionId = ScopePermission.ScopePermissionId.builder()
+                .permission(Permission.builder()
+                        .id(1)
+                        .name(username)
+                        .role(role_admin)
+                        .employeeOnly(true)
+                        .build())
+                .build();
+
+        ScopePermission scopePermissionValue = ScopePermission.builder()
+                .id(scopePermissionId)
+                .defaultLevel(1)
+                .build();
+
+        scopePermissionsList = Lists.newArrayList();
+        scopePermissionsList.add(scopePermissionValue);
+
+        loginPermissionRole = LoginPermissionRole.Account;
+
+        notificationEmailTemplate = NotificationEmailTemplate.builder()
+                .id(id)
+                .template(template)
+                .build();
+
+        login = Login.builder()
+                .id(id)
+                .username(username)
+                .active(true)
+                .build();
+
+        account = ClientAccount.builder()
+                .currency(Currency.builder()
+                        .id(1)
+                        .build())
+                .build();
+
+        adminLoginPermission = LoginPermission.builder()
+                .id(LoginPermission.LoginPermissionId.builder()
+                        .loginId(1)
+                        .permission(Permission.builder().role("Admin").id(1).employeeOnly(true).build())
+                        .build())
+                .level(5)
+                .build();
+
+        normalLoginPermission = LoginPermission.builder()
+                .id(LoginPermission.LoginPermissionId.builder()
+                        .loginId(10)
+                        .permission(Permission.builder().role("").id(10).employeeOnly(true).build())
+                        .build())
+                .level(5)
+                .build();
+
+        scope = Scope.builder()
+                .name("Viewer")
+                .scopePermissions(Lists.newArrayList())
+                .build();
+
+        service.setAdminRole("ADMIN");
+    }
+
+    @Test
+    public void testFindByUsername() {
+        Mockito.when(loginRepository.findOneByUsername(username))
+                .thenReturn(Optional.of(login));
+
+        Login result = service.findByUsername(username);
+
+        assertNotNull(result);
+        assertEquals(id, result.getId());
+
+        Mockito.verify(loginRepository, Mockito.times(1))
+                .findOneByUsername(username);
+    }
+
+    @Test(expected = WGNotFoundException.class)
+    public void testFindByUsernameNotFound() {
+        Mockito.when(loginRepository.findOneByUsername(username))
+                .thenReturn(Optional.empty());
+
+        try {
+            service.findByUsername(username);
+        } catch (WGNotFoundException ex) {
+            assertEquals(HttpStatus.NOT_FOUND, ex.getStatus());
+            throw ex;
+        } finally {
+            Mockito.verify(loginRepository, Mockito.times(1))
+                    .findOneByUsername(username);
+        }
+    }
+
+    @Test
+    public void testFindAll() {
+        Pageable pageable = PageRequest.of(0, 10);
+        Mockito.when(loginRepository.findAll(pageable))
+                .thenReturn(new PageImpl<>(Lists.newArrayList(login)));
+
+        Page<LoginDto> result = service.findAll(username, pageable);
+
+        assertNotNull(result);
+        assertEquals(1, result.getContent().size());
+
+        Mockito.verify(loginRepository, Mockito.times(1))
+                .findAll(pageable);
+    }
+
+    @Test
+    public void testCreateNewLogin() {
+        LoginDto newLogin = LoginDto.builder()
+                .username(username)
+                .password(password)
+                .email(email)
+                .sendEmail(false)
+                .role(RoleDto.builder().name("Admin").build())
+                .build();
+
+        Mockito.when(loginPermissionRepository.save(any(LoginPermission.class)))
+                .thenReturn(adminLoginPermission);
+        Mockito.when(loginRepository.findOneByUsername(username))
+                .thenReturn(Optional.empty());
+        Mockito.when(loginRepository.save(any(Login.class)))
+                .thenAnswer(i -> i.getArgument(0));
+
+        LoginDto result = service.createNewLogin(newLogin, null, username);
+
+        assertNotNull(result);
+        assertEquals(username, result.getUsername());
+
+        Mockito.verify(loginPermissionRepository, Mockito.times(1))
+                .save(any(LoginPermission.class));
+        Mockito.verify(loginRepository, Mockito.times(1))
+                .findOneByUsername(username);
+        Mockito.verify(accountService, Mockito.times(0))
+                .findById(Mockito.anyInt());
+        Mockito.verify(loginRepository, Mockito.times(2))
+                .save(any(Login.class));
+        Mockito.verify(modificationService, Mockito.times(1))
+                .save(any(Login.class), Mockito.eq(Login.class), Mockito.eq(username), Mockito.eq(ModificationOperation.INSERT));
+    }
+
+    @Test(expected = WGInvalidException.class)
+    public void testCreateNewLogin_badPassword() {
+        LoginDto newLogin = LoginDto.builder()
+                .username(username)
+                .password("password")
+                .email(email)
+                .role(RoleDto.builder().name("Admin").build())
+                .build();
+
+        try {
+            service.createNewLogin(newLogin, null, username);
+        } catch (WGInvalidException ex) {
+            assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
+            assertEquals(ex.getMessage(), "The password should be at least 8 characters long with at least one digit, one upper case letter, and one lower case letter");
+            throw ex;
+        }
+    }
+
+    @Test
+    public void testCreateNewLoginWithClientId() {
+        LoginDto newLogin = LoginDto.builder()
+                .username(username)
+                .password(password)
+                .email(email)
+                .sendEmail(false)
+                .build();
+        Mockito.when(scopeRepository.findOneByName(anyString()))
+                .thenReturn(scope);
+        Mockito.when(loginRepository.findOneByUsername(username))
+                .thenReturn(Optional.empty());
+        Mockito.when(accountService.findById(id))
+                .thenReturn(account);
+        Mockito.when(loginRepository.save(any(Login.class)))
+                .thenAnswer(i -> i.getArgument(0));
+
+        LoginDto result = service.createNewLogin(newLogin, id, username);
+
+        assertNotNull(result);
+        assertEquals(username, result.getUsername());
+
+        Mockito.verify(scopeRepository, Mockito.times(1))
+                .findOneByName(anyString());
+        Mockito.verify(loginRepository, Mockito.times(1))
+                .findOneByUsername(username);
+        Mockito.verify(accountService, Mockito.times(1))
+                .findById(id);
+        Mockito.verify(loginRepository, Mockito.times(2))
+                .save(any(Login.class));
+        Mockito.verify(modificationService, Mockito.times(1))
+                .save(any(Login.class), Mockito.eq(Login.class), Mockito.eq(username), Mockito.eq(ModificationOperation.INSERT));
+    }
+
+    @Test(expected = WGInvalidException.class)
+    public void testCreateNewLoginInvalid() {
+        LoginDto newLogin = LoginDto.builder().build();
+
+        try {
+            service.createNewLogin(newLogin, id, username);
+        } catch (WGInvalidException ex) {
+            assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
+            throw ex;
+        } finally {
+            Mockito.verify(loginRepository, Mockito.times(0))
+                    .findOneByUsername(Mockito.anyString());
+            Mockito.verify(accountService, Mockito.times(0))
+                    .findById(Mockito.anyInt());
+            Mockito.verify(loginRepository, Mockito.times(0))
+                    .save(any(Login.class));
+            Mockito.verify(modificationService, Mockito.times(0))
+                    .save(any(Login.class), Mockito.eq(Login.class), Mockito.anyString(), Mockito.anyInt());
+        }
+    }
+
+    @Test(expected = WGDuplicateEntityException.class)
+    public void testCreateNewLoginDuplicate() {
+        LoginDto newLogin = LoginDto.builder()
+                .username(username)
+                .password(password)
+                .email(email)
+                .sendEmail(false)
+                .build();
+
+        Mockito.when(loginRepository.findOneByUsername(username))
+                .thenReturn(Optional.of(login));
+
+        try {
+            service.createNewLogin(newLogin, id, username);
+        } catch (WGDuplicateEntityException ex) {
+            assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
+            throw ex;
+        } finally {
+            Mockito.verify(loginRepository, Mockito.times(1))
+                    .findOneByUsername(username);
+            Mockito.verify(accountService, Mockito.times(0))
+                    .findById(Mockito.anyInt());
+            Mockito.verify(loginRepository, Mockito.times(0))
+                    .save(any(Login.class));
+            Mockito.verify(modificationService, Mockito.times(0))
+                    .save(any(Login.class), Mockito.eq(Login.class), Mockito.anyString(), Mockito.anyInt());
+        }
+    }
+
+    @Test
+    public void testResetPassword() {
+        String newPassword = "P@ssw0rd2";
+        login.setPassword(BCrypt.hashpw(password, BCrypt.gensalt()));
+
+        Mockito.when(loginRepository.findOneByUsername(username))
+                .thenReturn(Optional.of(login));
+
+        Mockito.when(loginRepository.save(any(Login.class)))
+                .thenAnswer(i -> i.getArgument(0));
+
+        LoginDto result = service.changePassword(username, newPassword);
+
+        assertNotNull(result);
+        assertNotEquals(password, result.getPassword());
+
+        Mockito.verify(loginRepository, Mockito.times(1))
+                .findOneByUsername(username);
+        Mockito.verify(loginRepository, Mockito.times(1))
+                .save(any(Login.class));
+    }
+
+    @Test(expected = WGInvalidException.class)
+    public void testResetPasswordEmpty() {
+        String newPassword = "";
+
+        Mockito.when(loginRepository.findOneByUsername(username))
+                .thenReturn(Optional.ofNullable(login));
+
+        try {
+            service.changePassword(username, newPassword);
+        } catch (WGInvalidException ex) {
+            assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
+            throw ex;
+        } finally {
+            Mockito.verify(loginRepository, Mockito.times(1))
+                    .findOneByUsername(Mockito.anyString());
+            Mockito.verify(loginRepository, Mockito.times(0))
+                    .save(any(Login.class));
+        }
+    }
+
+    @Test(expected = WGInvalidException.class)
+    public void testResetPasswordValidateLength() {
+        String newPassword = "12345";
+
+        Mockito.when(loginRepository.findOneByUsername(username))
+                .thenReturn(Optional.ofNullable(login));
+
+        try {
+            service.changePassword(username, newPassword);
+        } catch (WGInvalidException ex) {
+            assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
+            throw ex;
+        } finally {
+            Mockito.verify(loginRepository, Mockito.times(1))
+                    .findOneByUsername(Mockito.anyString());
+            Mockito.verify(loginRepository, Mockito.times(0))
+                    .save(any(Login.class));
+        }
+    }
+
+    @Test(expected = WGNotFoundException.class)
+    public void testResetPasswordNotFound() {
+        String newPassword = "P@ssw0rd";
+
+        Mockito.when(loginRepository.findOneByUsername(username))
+                .thenReturn(Optional.empty());
+
+        try {
+            service.changePassword(username, newPassword);
+        } catch (WGNotFoundException ex) {
+            assertEquals(HttpStatus.NOT_FOUND, ex.getStatus());
+            throw ex;
+        } finally {
+            Mockito.verify(loginRepository, Mockito.times(1))
+                    .findOneByUsername(username);
+            Mockito.verify(loginRepository, Mockito.times(0))
+                    .save(any(Login.class));
+        }
+    }
+
+    @Test(expected = WGInvalidException.class)
+    public void testResetPassword_sameAsOldPassword() {
+        login.setPassword(BCrypt.hashpw(password, BCrypt.gensalt()));
+
+        Mockito.when(loginRepository.findOneByUsername(username))
+                .thenReturn(Optional.of(login));
+        try {
+            service.changePassword(username, password);
+        } catch (WGInvalidException ex) {
+            assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
+            assertEquals("New password cannot be the same as old password", ex.getMessage());
+            throw ex;
+        } finally {
+            Mockito.verify(loginRepository, Mockito.times(1))
+                    .findOneByUsername(username);
+            Mockito.verify(loginRepository, Mockito.times(0))
+                    .save(any(Login.class));
+        }
+    }
+
+    @Test
+    public void testUpdateEmail() {
+        String newEmail = "test.new@testmail.com";
+
+        Mockito.when(loginRepository.findOneByUsername(username))
+                .thenReturn(Optional.of(login));
+        Mockito.when(loginRepository.save(any(Login.class)))
+                .thenAnswer(i -> i.getArgument(0));
+
+        LoginDto result = service.updateEmail(username, newEmail);
+
+        assertNotNull(result);
+        assertEquals(newEmail, result.getEmail());
+
+        Mockito.verify(loginRepository, Mockito.times(1))
+                .findOneByUsername(username);
+        Mockito.verify(loginRepository, Mockito.times(1))
+                .save(any(Login.class));
+    }
+
+    @Test(expected = WGInvalidException.class)
+    public void testUpdateEmailEmpty() {
+        String newEmail = "";
+
+        try {
+            service.updateEmail(username, newEmail);
+        } catch (WGInvalidException ex) {
+            assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
+            throw ex;
+        } finally {
+            Mockito.verify(loginRepository, Mockito.times(0))
+                    .findOneByUsername(Mockito.anyString());
+            Mockito.verify(loginRepository, Mockito.times(0))
+                    .save(any(Login.class));
+        }
+    }
+
+    @Test(expected = WGNotFoundException.class)
+    public void testUpdateEmailLoginNotFound() {
+        String newEmail = "test.new@testmail.com";
+
+        Mockito.when(loginRepository.findOneByUsername(username))
+                .thenReturn(Optional.empty());
+
+        try {
+            service.updateEmail(username, newEmail);
+        } catch (WGNotFoundException ex) {
+            assertEquals(HttpStatus.NOT_FOUND, ex.getStatus());
+            throw ex;
+        } finally {
+            Mockito.verify(loginRepository, Mockito.times(1))
+                    .findOneByUsername(username);
+            Mockito.verify(loginRepository, Mockito.times(0))
+                    .save(any(Login.class));
+        }
+    }
+
+    @Test
+    public void testChangeActivateAccount() {
+        Mockito.when(loginRepository.findOneByUsername(username))
+                .thenReturn(Optional.of(login));
+        Mockito.when(loginRepository.save(any(Login.class)))
+                .thenAnswer(i -> i.getArgument(0));
+
+        LoginDto result = service.changeActivateAccount(username, false);
+
+        assertNotNull(result);
+        assertEquals(false, result.getActive());
+
+        Mockito.verify(loginRepository, Mockito.times(1))
+                .findOneByUsername(username);
+        Mockito.verify(loginRepository, Mockito.times(1))
+                .save(any(Login.class));
+    }
+
+    @Test(expected = WGNotFoundException.class)
+    public void testChangeActivateAccountNotFound() {
+        Mockito.when(loginRepository.findOneByUsername(username))
+                .thenReturn(Optional.empty());
+
+        try {
+            service.changeActivateAccount(username, false);
+        } catch (WGNotFoundException ex) {
+            assertEquals(HttpStatus.NOT_FOUND, ex.getStatus());
+            throw ex;
+        } finally {
+            Mockito.verify(loginRepository, Mockito.times(1))
+                    .findOneByUsername(username);
+            Mockito.verify(loginRepository, Mockito.times(0))
+                    .save(any(Login.class));
+        }
+    }
+
+    @Test
+    public void testChangeLockedAccount() {
+        Mockito.when(loginRepository.findOneByUsername(username))
+                .thenReturn(Optional.of(login));
+        Mockito.when(loginRepository.save(any(Login.class)))
+                .thenAnswer(i -> i.getArgument(0));
+
+        LoginDto result = service.changeLockedStatus(username, true);
+
+        assertNotNull(result);
+        assertEquals(true, result.getActive());
+
+        Mockito.verify(loginRepository, Mockito.times(1))
+                .findOneByUsername(username);
+        Mockito.verify(loginRepository, Mockito.times(1))
+                .save(any(Login.class));
+    }
+
+    @Test
+    public void testIncreaseLoginAttempts() {
+        login.setLoginAttempts(0);
+        Timestamp currentTimestamp = new Timestamp(System.currentTimeMillis());
+
+        Mockito.when(loginRepository.updateLoginAttemptsAndLastFailedAttempt(anyInt(), any(Timestamp.class), anyInt())
+        ).thenAnswer(i -> {
+            login.setLoginAttempts(i.getArgument(0));
+            login.setLastFailedAttempt(i.getArgument(1));
+            return null;
+        });
+        Mockito.doReturn(currentTimestamp).when(service)
+                .getCurrentTimestamp();
+
+        service.increaseLoginAttempts(login);
+
+        assertEquals(1, login.getLoginAttempts());
+        assertEquals(currentTimestamp, login.getLastFailedAttempt());
+
+        Mockito.verify(loginRepository, Mockito.times(1))
+                .updateLoginAttemptsAndLastFailedAttempt(1, login.getLastFailedAttempt(), login.getId());
+    }
+
+    @Test
+    public void testResetLoginAttempts() {
+        login.setLoginAttempts(2);
+
+        Mockito.when(loginRepository.updateLoginAttemptsAndLastFailedAttempt(anyInt(), any(), anyInt())
+        ).thenAnswer(i -> {
+            login.setLoginAttempts(i.getArgument(0));
+            return null;
+        });
+
+        service.resetLoginAttempts(login);
+
+        assertEquals(0, login.getLoginAttempts());
+
+        Mockito.verify(loginRepository, Mockito.times(1))
+                .updateLoginAttemptsAndLastFailedAttempt(0, login.getLastFailedAttempt(), login.getId());
+    }
+
+    @Test
+    public void testSendLoginAttemptsExceededThresholdEmail() throws Exception {
+        login.setAccount(
+                ClientAccount.builder()
+                        .name(clientAccountName)
+                        .build()
+        );
+        Mockito.when(mailService.sendEmail(anyString(), anyString(), anyString(), anyString(), any()))
+                .thenReturn(1);
+
+        service.sendLoginAttemptsExceededThresholdEmail(login);
+
+        Mockito.verify(service, Mockito.times(1))
+                .getEmailBody(login);
+    }
+
+    @Test (expected = WGNotFoundException.class)
+    public void testCreateNewLogin_NullClientId() {
+        LoginDto newLogin = LoginDto.builder()
+                .username(username)
+                .password(password)
+                .email(email)
+                .role(null)
+                .build();
+        when(loginRepository.findOneByUsername(username))
+                .thenReturn(Optional.empty());
+        when(loginRepository.save(any(Login.class)))
+                .thenAnswer(i -> i.getArgument(0));
+
+        LoginDto result = service.createNewLogin(newLogin, null, username);
+
+        assertNotNull(result);
+        assertEquals(username, result.getUsername());
+
+        verify(loginRepository, times(1))
+                .findOneByUsername(username);
+        verify(accountService, times(0))
+                .findById(anyInt());
+        verify(loginRepository, times(2))
+                .save(any(Login.class));
+        verify(modificationService, times(1))
+                .save(any(Login.class), eq(Login.class), eq(username), eq(ModificationOperation.INSERT));
+    }
+
+    @Test (expected = WGInvalidException.class)
+    public void testCreateNewLogin_ThrowException() {
+        LoginDto newLogin = LoginDto.builder()
+                .username("")
+                .password(password)
+                .email(email)
+                .role(null)
+                .build();
+        try {
+            service.createNewLogin(newLogin, null, username);
+        } catch (WGInvalidException ex) {
+            assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
+            throw ex;
+        }
+    }
+
+    @Test (expected = WGInvalidException.class)
+    public void testCreateNewLogin_LoginPermissionsError() {
+        LoginDto newLogin = LoginDto.builder()
+                .username(username)
+                .password(password)
+                .email(email)
+                .sendEmail(false)
+                .role(RoleDto.builder().name("Admin").build())
+                .build();
+//        LoginPermission newPermission = LoginPermission.builder()
+//                .id(LoginPermission.LoginPermissionId.builder()
+//                        .loginId(1)
+//                        .permission(Permission.builder().role("Admin").id(1).employeeOnly(true).build())
+//                        .build())
+//                .level(100)
+//                .build();
+//        Set<LoginPermission> newPermissions = Sets.newHashSet();
+//        newPermissions.add(newPermission);
+
+        when(loginRepository.findOneByUsername(username))
+                .thenReturn(Optional.empty());
+        when(loginRepository.save(any(Login.class)))
+                .thenReturn(dbLogin);
+        when(dbLogin.getLoginPermissions())
+                .thenReturn(loginPermissionSet);
+        when(loginPermissionSet.stream())
+                .thenReturn(loginPermissionStream);
+        when(loginPermissionStream.anyMatch(any()))
+                .thenReturn(true);
+
+        try {
+            service.createNewLogin(newLogin, null, username);
+        } catch (WGInvalidException ex){
+            assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
+            throw ex;
+        } finally {
+            verify(loginPermissionRepository, times(1))
+                    .save(any(LoginPermission.class));
+            verify(loginRepository, times(1))
+                    .findOneByUsername(username);
+            verify(accountService, times(0))
+                    .findById(anyInt());
+            verify(loginRepository, times(1))
+                    .save(any(Login.class));
+            assertEquals(loginPermissionSet, dbLogin.getLoginPermissions());
+            assertEquals(loginPermissionStream, loginPermissionSet.stream());
+            assertTrue(loginPermissionStream.anyMatch(any()));
+        }
+    }
+
+    @Test (expected = WGNotFoundException.class)
+    public void testCreateNewLogin_GetSendEmail() {
+        LoginDto newLogin = LoginDto.builder()
+                .username(username)
+                .password(password)
+                .email(email)
+                .sendEmail(true)
+                .build();
+        when(scopeRepository.findOneByName(anyString()))
+                .thenReturn(scope);
+        when(loginRepository.findOneByUsername(username))
+                .thenReturn(Optional.empty());
+        when(accountService.findById(id))
+                .thenReturn(account);
+        when(loginRepository.save(any(Login.class)))
+                .thenAnswer(i -> i.getArgument(0));
+
+        try{
+            LoginDto result = service.createNewLogin(newLogin, id, username);
+            assertNotNull(result);
+            assertEquals(username, result.getUsername());
+        } catch (WGNotFoundException ex){
+            assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
+            throw ex;
+        } finally {
+            verify(scopeRepository, times(1))
+                    .findOneByName(anyString());
+            verify(loginRepository, times(1))
+                    .findOneByUsername(username);
+            verify(accountService, times(1))
+                    .findById(id);
+            verify(loginRepository, times(2))
+                    .save(any(Login.class));
+            verify(modificationService, times(1))
+                    .save(any(Login.class), eq(Login.class), eq(username), eq(ModificationOperation.INSERT));
+        }
+    }
+
+    @Test
+    public void testCreateNewLogin_LoginGetSendEmail() {
+        LoginDto newLogin = LoginDto.builder()
+                .username(username)
+                .password(password)
+                .email(email)
+                .sendEmail(true)
+                .build();
+
+        when(loginRepository.findOneByUsername(username))
+                .thenReturn(Optional.of(dbLogin));
+        doNothing().when(service)
+                .sendAccountActivationEmail(newLogin);
+
+        service.createNewLogin(newLogin, id, username);
+
+        verify(loginRepository, times(1))
+                .findOneByUsername(username);
+        assertEquals(Optional.of(dbLogin).get().dto(), service.createNewLogin(newLogin, id, username));
+    }
+
+    @Test
+    public void testSendLoginAttemptsExceededThresholdEmail_WithException() throws Exception {
+        doThrow(Exception.class).when(mailService)
+                .sendEmail(anyString(), anyString(), anyString(), anyString(),any());
+        //TODO: Check log.error
+        service.sendLoginAttemptsExceededThresholdEmail(login);
+        verify(mailService, times(1))
+                .sendEmail(anyString(), anyString(), anyString(), anyString(),any());
+    }
+
+    @Test (expected = WGNotFoundException.class)
+    public void testGetPermissions_NullScope() {
+        when(roleDto.getName())
+                .thenReturn(role_admin);
+        try{
+            service.getPermissions(login, roleDto);
+        } catch (WGNotFoundException ex) {
+            assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
+            throw ex;
+        } finally {
+            assertEquals(role_admin, roleDto.getName());
+        }
+    }
+
+    @Test
+    public void testGetScopePermissions() {
+        when(roleDto.getName())
+                .thenReturn(role_admin);
+        when(scopeRepository.findOneByName(roleDto.getName()))
+                .thenReturn(mockScope);
+        when(mockScope.getScopePermissions())
+                .thenReturn(scopePermissionsList);
+
+        service.getPermissions(login, roleDto);
+        assertEquals(role_admin, roleDto.getName());
+        assertEquals(mockScope, scopeRepository.findOneByName(roleDto.getName()));
+        assertEquals(scopePermissionsList, mockScope.getScopePermissions());
+    }
+
+    @Test
+    public void testGetScopePermissions_ContainsKey() {
+        mockMap.put("key", 2);
+        when(roleDto.getName())
+                .thenReturn(role_admin);
+        when(scopeRepository.findOneByName(roleDto.getName()))
+                .thenReturn(mockScope);
+        when(mockScope.getScopePermissions())
+                .thenReturn(scopePermissionsList);
+        when(roleDto.getPermissionLevels())
+                .thenReturn(mockMap);
+        when(mockMap.containsKey(any()))
+                .thenReturn(true);
+
+        service.getPermissions(login, roleDto);
+        assertTrue(mockMap.containsKey(any()));
+        assertEquals(mockMap, roleDto.getPermissionLevels());
+        assertEquals(role_admin, roleDto.getName());
+        assertEquals(mockScope, scopeRepository.findOneByName(roleDto.getName()));
+        assertEquals(scopePermissionsList, mockScope.getScopePermissions());
+    }
+
+    @Test
+    public void testFindByResetPasswordCode() {
+        when(loginRepository.findByPasswordResetCode(code))
+                .thenReturn(Optional.of(login));
+        Login result = service.findByResetPasswordCode(code);
+        assertEquals(Optional.of(login), loginRepository.findByPasswordResetCode(code));
+        assertEquals(result, service.findByResetPasswordCode(code));
+    }
+
+    @Test
+    public void testFindByResetPasswordCodeThrowException() {
+        try {
+            service.findByResetPasswordCode("");
+            Assert.fail();
+        } catch (Exception ex) {
+            Assert.assertEquals("Invalid reset password code", ex.getMessage());
+        }
+    }
+
+    @Test
+    public void testFindByAccountActivationCode() {
+        when(loginRepository.findByAccountActivationCode(code))
+                .thenReturn(Optional.of(login));
+        Login result = service.findByAccountActivationCode(code);
+        assertEquals(Optional.of(login), loginRepository.findByAccountActivationCode(code));
+        assertEquals(result, service.findByAccountActivationCode(code));
+    }
+
+    @Test (expected = WGInvalidException.class)
+    public void testFindByAccountActivationCodeThrowException() {
+        try {
+            service.findByAccountActivationCode("");
+        } catch (WGInvalidException ex) {
+            assertEquals(HttpStatus.NOT_FOUND, ex.getStatus());
+            throw ex;
+        }
+    }
+
+    @Test
+    public void testGetClientByUsername() {
+        doReturn(login).when(service)
+                .findByUsername(username);
+        ClientAccount result = service.getClientByUsername(username, id);
+        assertEquals(login, service.findByUsername(username));
+        assertEquals(result, service.getClientByUsername(username, id));
+    }
+
+    @Test
+    public void testGetClientByUsernameGetReturn() {
+        doReturn(dbLogin).when(service)
+                .findByUsername(username);
+        when(dbLogin.getAccount())
+                .thenReturn(clientAccount);
+        when(clientAccount.getId())
+                .thenReturn(id);
+        service.getClientByUsername(username, id);
+        assertEquals(dbLogin, service.findByUsername(username));
+        assertEquals(clientAccount, dbLogin.getAccount());
+        assertEquals(id, clientAccount.getId());
+    }
+
+    @Test
+    public void testGetClientIdByUsername() {
+        doReturn(login).when(service)
+                .findByUsername(username);
+        Integer result = service.getClientIdByUsername(username, id);
+        assertEquals(login, service.findByUsername(username));
+        assertEquals(result, service.getClientIdByUsername(username, id));
+    }
+
+    @Test
+    public void testGetClientIdByUsernameGetReturn() {
+        doReturn(dbLogin).when(service)
+                .findByUsername(username);
+        when(dbLogin.getAccount())
+                .thenReturn(clientAccount);
+        when(clientAccount.getId())
+                .thenReturn(id);
+        service.getClientIdByUsername(username, id);
+        assertEquals(dbLogin, service.findByUsername(username));
+        assertEquals(clientAccount, dbLogin.getAccount());
+        assertEquals(id, clientAccount.getId());
+    }
+
+    @Test (expected = IllegalArgumentException.class)
+    public void testSendAccountActivationEmail_NullTemplate() {
+        doReturn(email).when(loginDto)
+                .getEmail();
+        doReturn(Optional.of(login)).when(loginRepository)
+                .findByEmail(email);
+        doReturn("test").when(loginDto)
+                .getUsername();
+        when(notificationTaskTypeRepository.findByName("__verification__"))
+                .thenReturn(Optional.of(taskType));
+        when(taskType.getEmailTemplate())
+                .thenReturn(emailTemplate);
+
+        assertNotNull(taskType.getEmailTemplate());
+        service.sendAccountActivationEmail(loginDto);
+        assertEquals(email, loginDto.getEmail());
+        verify(loginRepository,times(1))
+                .findByEmail(email);
+        verify(loginDto, times(1))
+                .getUsername();
+        assertEquals("test", loginDto.getUsername());
+        verify(notificationTaskTypeRepository,times(1))
+                .findByName("__verification__");
+        verify(taskType,times(1))
+                .getEmailTemplate();
+        verify(service, times(1))
+                .sendAccountActivationEmail(loginDto);
+    }
+
+    @Test
+    public void testSendAccountActivationEmail() throws Exception {
+        when(loginDto.getEmail())
+                .thenReturn(email);
+        doReturn(Optional.of(login)).when(loginRepository)
+                .findByEmail(email);
+        when(loginDto.getUsername())
+                .thenReturn("test");
+        when(notificationTaskTypeRepository.findByName("__verification__"))
+                .thenReturn(Optional.of(taskType));
+        when(taskType.getTemplate())
+                .thenReturn(template);
+
+        service.sendAccountActivationEmail(loginDto);
+        assertEquals(email, loginDto.getEmail());
+        assertEquals("test", loginDto.getUsername());
+
+        verify(loginRepository,times(1))
+                .findByEmail(email);
+        verify(notificationTaskTypeRepository,times(1))
+                .findByName("__verification__");
+        verify(service, times(1))
+                .sendAccountActivationEmail(loginDto);
+    }
+
+    @Test
+    public void testSendAccountActivationEmail_ThrowException() throws Exception {
+        when(loginDto.getEmail())
+                .thenReturn(email);
+        doReturn(Optional.of(login)).when(loginRepository)
+                .findByEmail(email);
+        when(loginDto.getUsername())
+                .thenReturn("test");
+        when(notificationTaskTypeRepository.findByName("__verification__"))
+                .thenReturn(Optional.of(taskType));
+        when(taskType.getTemplate())
+                .thenReturn(template);
+        doThrow(Exception.class).when(mailService).sendEmail(anyString(), anyString(), anyString(), anyString(),anyObject(), anyObject());
+
+        service.sendAccountActivationEmail(loginDto);
+        assertEquals(email, loginDto.getEmail());
+        assertEquals("test", loginDto.getUsername());
+
+        verify(loginRepository,times(1))
+                .findByEmail(email);
+        verify(notificationTaskTypeRepository,times(1))
+                .findByName("__verification__");
+        verify(service, times(1))
+                .sendAccountActivationEmail(loginDto);
+    }
+
+    @Test(expected = NullPointerException.class)
+    public void testGetAllPermissions() {
+        service.getAllPermissions();
+        verify(loginPermissionRepository, times(1))
+                .findAll();
+    }
+
+    @Test (expected = NullPointerException.class)
+    public void testChangePermission() {
+        when(loginRepository.findOneByUsername(username))
+                .thenReturn(Optional.of(dbLogin));
+        when(loginPermission.getId())
+                .thenReturn(LoginPermission.LoginPermissionId.builder().build());
+        when(dbLogin.getLoginPermissions())
+                .thenReturn(permissions);
+
+        LoginDto result = service.changePermission(username, permissions);
+
+        verify(loginRepository, times(1))
+                .findOneByUsername(username);
+        verify(loginPermission, times(1))
+                .getId();
+        verify(loginPermissionRepository,times(1))
+                .saveAll(permissions);
+        verify(dbLogin, times(1))
+                .getLoginPermissions();
+        assertEquals(result, loginRepository.save(dbLogin).dto());
+    }
+
+    @Test
+    public void testGetCurrentTimeStamp() {
+        assertTrue(Math.abs(service.getCurrentTimestamp().getTime()-System.currentTimeMillis()) < 5 );
+    }
+
+    @Test
+    public void testGetStatistics() {
+        login.setAccount(
+                ClientAccount.builder()
+                        .name(clientAccountName)
+                        .id(clientAccountId)
+                        .build()
+        );
+        when(loginRepository.findOneByUsername(username))
+                .thenReturn(Optional.of(login));
+        when(em.createQuery("SELECT h FROM " + HomePageStatisticsClient.class.getSimpleName() + " h WHERE id = :id", HomePageStatisticsClient.class))
+                .thenReturn(typedQuery);
+        when(typedQuery.setParameter("id", clientAccountId))
+                .thenReturn(typedQuery);
+
+        JSONObject result = service.getStatistics(username);
+
+        verify(loginRepository, times(1))
+                .findOneByUsername(username);
+        verify(em, times(1))
+                .createQuery("SELECT h FROM " + HomePageStatisticsClient.class.getSimpleName() + " h WHERE id = :id", HomePageStatisticsClient.class);
+        verify(typedQuery, times(1))
+                .setParameter("id", clientAccountId);
+        assertEquals(result, new JSONObject());
+    }
+
+    @Test
+    public void testGetStatistics_NoAccount() {
+        when(loginRepository.findOneByUsername(username))
+                .thenReturn(Optional.of(login));
+        when(em.createQuery("SELECT h FROM " + HomePageStatistics.class.getSimpleName() + " h", HomePageStatistics.class))
+                .thenReturn(typedQuery);
+
+        JSONObject result = service.getStatistics(username);
+
+        verify(loginRepository, times(1))
+                .findOneByUsername(username);
+        verify(em, times(1))
+                .createQuery("SELECT h FROM " + HomePageStatistics.class.getSimpleName() + " h", HomePageStatistics.class);
+        assertEquals(result, new JSONObject());
+    }
+
+    @Test
+    public void testGetStatistics_NoAccount_NotNullResult() {
+        List<HomePageStatistics> list = new ArrayList<>();
+        list.add(HomePageStatistics.builder().build());
+
+        when(loginRepository.findOneByUsername(username))
+                .thenReturn(Optional.of(login));
+        when(em.createQuery("SELECT h FROM " + HomePageStatistics.class.getSimpleName() + " h", HomePageStatistics.class))
+                .thenReturn(typedQuery);
+        when(typedQuery.getResultList())
+                .thenReturn(list);
+
+        JSONObject result = service.getStatistics(username);
+        verify(typedQuery, times(1))
+                .getResultList();
+        verify(loginRepository, times(1))
+                .findOneByUsername(username);
+        verify(em, times(1))
+                .createQuery("SELECT h FROM " + HomePageStatistics.class.getSimpleName() + " h", HomePageStatistics.class);
+        verify(service, times(1))
+                .getStatistics(username);
+    }
+
+    @Test
+    public void testScopedPermissionToLevel() {
+        assertEquals(-2, service.scopedPermissionToLevel(initScopedPermission));
+
+        when(scopedPermission.admin())
+                .thenReturn(true);
+        assertEquals(4, service.scopedPermissionToLevel(scopedPermission));
+        verify(scopedPermission, times(1))
+                .admin();
+    }
+
+    @Test
+    public void testScopePermissionToLevel() {
+        when(scopedPermission.admin())
+                .thenReturn(false);
+        when(scopedPermission.mode())
+                .thenReturn(LoginPermissionMode.VIEW);
+
+        Integer result = service.scopedPermissionToLevel(scopedPermission);
+
+        verify(scopedPermission, times(1))
+                .admin();
+        verify(scopedPermission, times(1))
+                .mode();
+        assertEquals(result, scopedPermission.mode().level(scopedPermission.client()));
+    }
+
+    @Test
+    public void testLevelToString() {
+        Integer i = 4;
+        Integer a = 2;
+
+        assertEquals("", service.levelToString(null));
+        assertEquals("", service.levelToString(i));
+        assertEquals("", service.levelToString(-i));
+        assertEquals("_" + LoginPermissionMode.fromLevel(a), service.levelToString(a));
+    }
+
+    @Test
+    public void testInternalOnly() {
+        Integer permission = 5;
+        assertFalse(service.internalOnly(null));
+        assertFalse(service.internalOnly(permission));
+        assertTrue(service.internalOnly(2));
+        assertTrue(service.internalOnly(3));
+        assertTrue(service.internalOnly(4));
+    }
+
+    @Test
+    public void testIsAdmin() {
+        doReturn(permissions).when(dbLogin)
+                .getLoginPermissions();
+        when(loginPermission.getId())
+                .thenReturn(normalLoginPermission.getId());
+
+        service.isAdmin(dbLogin);
+        verify(dbLogin, times(1))
+                .getLoginPermissions();
+        verify(loginPermission, times(1))
+                .getId();
+        assertFalse(service.isAdmin(dbLogin));
+    }
+
+    @Test
+    public void testIsAdminPermission() {
+        assertTrue(service.isAdminPermission(adminLoginPermission));
+        assertFalse(service.isAdminPermission(normalLoginPermission));
+    }
+
+    @Test
+    public void testGetRoles() {
+        doReturn(permissions).when(dbLogin)
+                .getLoginPermissions();
+        when(loginPermission.getId())
+                .thenReturn(normalLoginPermission.getId());
+        when(loginPermission.getLevel())
+                .thenReturn(3);
+
+        service.getRoles(dbLogin);
+
+        verify(dbLogin, times(1))
+                .getLoginPermissions();
+        verify(loginPermission, times(1))
+                .getId();
+        verify(loginPermission, times(1))
+                .getLevel();
+        verify(service, times(1))
+                .getRoles(dbLogin);
+    }
+
+    @Test
+    public void testGetAuthorities() {
+        List<GrantedAuthority> list = new ArrayList<>();
+        doReturn(list).when(service).getRoles(dbLogin);
+        service.getAuthorities(dbLogin);
+        verify(service, times(1))
+                .getRoles(dbLogin);
+    }
+
+    @Test
+    public void testHasPermission() {
+        doReturn(permissions).when(dbLogin)
+                .getLoginPermissions();
+        when(loginPermission.getId())
+                .thenReturn(normalLoginPermission.getId());
+        when(loginPermission.getLevel())
+                .thenReturn(3);
+
+        service.hasPermission(dbLogin, loginPermissionRole, minimumInventoryPermissionLevel);
+        verify(dbLogin, times(1))
+                .getLoginPermissions();
+        verify(loginPermission, times(1))
+                .getId();
+        verify(loginPermission, times(1))
+                .getLevel();
+        assertFalse(service.hasPermission(dbLogin, loginPermissionRole, minimumInventoryPermissionLevel));
+    }
+
+    @Test
+    public void testProcessForgotPassword(){
+        when(loginRepository.findByEmail(email))
+                .thenReturn(Optional.of(dbLogin));
+
+        try {
+            service.processForgotPassword(email);
+        } catch (NullPointerException ex) {
+            assertEquals("Could not send notification email to!", ex.getMessage());
+            throw ex;
+        } finally {
+            verify(loginRepository, times(1))
+                    .save(dbLogin);
+            verify(service, times(1))
+                    .generateRandomCode();
+        }
+    }
+
+    @Test(expected = WGNotFoundException.class)
+    public void testProcessForgotPasswordNotFound() {
+        when(loginRepository.findByEmail(email))
+                .thenReturn(Optional.empty());
+        try {
+            service.processForgotPassword(email);
+        } catch (WGNotFoundException ex) {
+            assertEquals(HttpStatus.BAD_REQUEST, ex.getStatus());
+            throw ex;
+        } finally {
+            verify(loginRepository, times(1))
+                    .findByEmail(email);
+        }
+    }
+
+    @Test (expected = WGNotFoundException.class)
+    public void testGetPasswordResetEmailBody_NullTemplate(){
+        when(dbLogin.getUsername())
+                .thenReturn(username);
+        when(dbLogin.getAccount())
+                .thenReturn(account);
+        when(service.getPasswordResetEmailBody(dbLogin, resetLink))
+                .thenReturn(template);
+        try{
+            service.sendResetPasswordLinkToEmail(dbLogin, resetLink);
+        } catch (WGNotFoundException ex) {
+            assertEquals(HttpStatus.NOT_FOUND, ex.getStatus());
+            throw ex;
+        } finally {
+            verify(service, times(1))
+                    .getPasswordResetEmailBody(dbLogin, resetLink);
+        }
+    }
+
+    @Test
+    public void testGetPasswordResetEmailBody() {
+        when(dbLogin.getUsername())
+                .thenReturn(username);
+        when(dbLogin.getAccount())
+                .thenReturn(account);
+        when(forgotPasswordEmailRepository.findByClientId(dbLogin.getAccount().getId()))
+                .thenReturn(forgotPasswordEmailTemplate);
+        when(forgotPasswordEmailTemplate.getTemplate())
+                .thenReturn(String.valueOf(notificationEmailTemplate));
+        when(forgotPasswordEmailTemplate.getEmailTemplate())
+                .thenReturn(notificationEmailTemplate);
+
+        service.getPasswordResetEmailBody(dbLogin, resetLink);
+
+        assertEquals(username, dbLogin.getUsername());
+        assertEquals(account, dbLogin.getAccount());
+        assertEquals(String.valueOf(notificationEmailTemplate), forgotPasswordEmailTemplate.getTemplate());
+        assertEquals(notificationEmailTemplate, forgotPasswordEmailTemplate.getEmailTemplate());
+        verify(forgotPasswordEmailRepository, atLeastOnce())
+                .findByClientId(dbLogin.getAccount().getId());
+        verify(service, times(1))
+                .getPasswordResetEmailBody(dbLogin, resetLink);
+    }
+
+    @Test
+    public void testSendResetPasswordLinkToEmail() {
+        doReturn("string").when(service)
+                .getPasswordResetEmailBody(login, resetLink);
+        service.sendResetPasswordLinkToEmail(login, resetLink);
+        verify(service, times(1))
+                .sendResetPasswordLinkToEmail(login, resetLink);
+        assertEquals("string", service.getPasswordResetEmailBody(login, resetLink));
+    }
+
+    @Test (expected = WGAuthenticationException.class)
+    public void testGetLoginByPasswordResetCode_Null() {
+        when(loginRepository.findByPasswordResetCode(code))
+                .thenReturn(Optional.of(login));
+        try {
+            service.getLoginByPasswordResetCode(code);
+        } catch (WGAuthenticationException ex) {
+            assertEquals(HttpStatus.UNAUTHORIZED, ex.getStatus());
+            throw ex;
+        } finally {
+            verify(loginRepository, atLeastOnce())
+                    .findByPasswordResetCode(code);
+            verify(service, times(1))
+                    .getLoginByPasswordResetCode(code);
+        }
+    }
+
+    @Test
+    public void testGetLoginByPasswordResetCode() {
+        when(loginRepository.findByPasswordResetCode(code))
+                .thenReturn(Optional.of(dbLogin));
+
+        when(dbLogin.getPasswordResetCodeCreationDate())
+                .thenReturn(new Timestamp(Long.MAX_VALUE));
+
+        Login result = service.getLoginByPasswordResetCode(code);
+
+        assertNotNull(result);
+        assertEquals(result, service.getLoginByPasswordResetCode(code));
+        verify(loginRepository, atLeastOnce())
+                .findByPasswordResetCode(code);
+        assertEquals(new Timestamp(Long.MAX_VALUE), dbLogin.getPasswordResetCodeCreationDate());
+    }
+
+    @Test
+    public void testProcessResetPasswordFromCode() {
+        doReturn(login).when(service)
+                .getLoginByPasswordResetCode(code);
+        doReturn(loginDto).when(service)
+                .changePassword(login.getUsername(), password);
+
+        LoginDto result = service.processResetPasswordFromCode(code, password);
+
+        assertNotNull(result);
+        assertEquals(login, service.getLoginByPasswordResetCode(code));
+        verify(service, times(1))
+                .changePassword(login.getUsername(), password);
+    }
+
+    @Test (expected = WGAuthenticationException.class)
+    public void testGetLoginByAccountActivationCode_Null() {
+        when(loginRepository.findByAccountActivationCode(code))
+                .thenReturn(Optional.of(login));
+        try {
+            service.getLoginByAccountActivationCode(code);
+        } catch (WGAuthenticationException ex) {
+            assertEquals(HttpStatus.UNAUTHORIZED, ex.getStatus());
+            throw ex;
+        } finally {
+            verify(loginRepository, atLeastOnce())
+                    .findByAccountActivationCode(code);
+            verify(service, times(1))
+                    .getLoginByAccountActivationCode(code);
+        }
+    }
+
+    @Test
+    public void testGetLoginByAccountActivationCode() {
+        when(loginRepository.findByAccountActivationCode(code))
+                .thenReturn(Optional.of(dbLogin));
+        when(dbLogin.getAccountActivationCodeCreationDate())
+                .thenReturn(new Timestamp(Long.MAX_VALUE));
+        when(dbLogin.getAccountActivationCode())
+                .thenReturn("string");
+
+        Login result = service.getLoginByAccountActivationCode(code);
+
+        assertNotNull(result);
+        assertEquals(result, service.getLoginByAccountActivationCode(code));
+        assertEquals(new Timestamp(Long.MAX_VALUE), dbLogin.getAccountActivationCodeCreationDate());
+        assertEquals("string", dbLogin.getAccountActivationCode());
+
+        verify(loginRepository, atLeastOnce())
+                .findByAccountActivationCode(code);
+    }
+}
