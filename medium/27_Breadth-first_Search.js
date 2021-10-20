@@ -41,6 +41,12 @@ class Node {
             }
         }
         return array;
-
     }
   }
+
+  function A(array){
+      const queue = [this]
+      console.log("queue:" , queue)
+  }
+
+  
