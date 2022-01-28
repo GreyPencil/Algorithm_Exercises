@@ -23,10 +23,36 @@ Sample Output:
 */
 
 function reverseWordsInString(string) {
-    // Write your code here.
-    return '';
+  // Write your code here.
+  //O(n) time /space
+  const characters = []
+  for (const char of string) {
+    characters.push(char);
   }
-  
-  // Do not edit the line below.
-  exports.reverseWordsInString = reverseWordsInString;
-  
+  reverseListRange(characters, 0, characters.length - 1)
+
+  let startOfWord = 0;
+  while (startOfWord < characters.length) {
+    let endOfWord = startOfWord;
+    while (endOfWord < characters.length && characters[endOfWord] != ' ') {
+      endOfWord++
+    }
+    reverseListRange(characters, startOfWord, endOfWord -1)
+    startOfWord = endOfWord +1
+  }
+  return characters.join("");
+}
+
+const reverseListRange = (list, start, end) => {
+  while (start < end)
+{
+  const temp = list[start]
+  list[start] = list[end]
+  list[end] = temp;
+  start++
+  end--
+}
+}
+
+// Do not edit the line below.
+exports.reverseWordsInString = reverseWordsInString;
