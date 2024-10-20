@@ -12,7 +12,9 @@ function binarySearch(array, target) {
  
  function helper(array, target, left, right){
      while (left <= right ){
-         const mid = Math.floor((left+right)/2);
+        //  const mid = Math.floor((left+right)/2);
+         const mid = left + ((right - left) >> 1); // avoid over flow
+
              const potential = array[mid];
          if(target === potential){
              return mid;
